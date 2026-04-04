@@ -1,0 +1,4 @@
+CompileFlags:
+  Add: [
+    "-IC:/Program Files (x86)/string_slice/include"
+]
