@@ -4,10 +4,99 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <string.h>
-#include <errno.h>
 
 typedef char* string;
 typedef int32_t i32;
+
+typedef struct {
+	i32 key;
+	i32 value;
+} MapElement;
+
+typedef struct {
+	size_t size;
+	MapElement* pairs;
+} Map;
+
+void put(Map* map, i32 key, i32 value) {
+	map->pairs = realloc(map->pairs, sizeof(MapElement*) * (map->size + 1));
+	map->pairs[map->size] = (MapElement){ .key = key, .value = value };
+	map->size = map->size + 1;
+}
+
+i32 get(Map* map, i32 key) {
+	for(int i = 0; i < map->size; i++) {
+		if(map->pairs[i].key == key) {
+			return map->pairs[i].value;
+		}
+	}
+	printf("[WARNING] `get()` failed to find value referenced by %d.\n  Adding placeholder: { %d : 0 }\n", key, key);
+	put(map, key, 0);
+	return 0;
+}
+
+void set(Map* map, i32 key, i32 value) {
+	for(int i = 0; i < map->size; i++) {
+		if(map->pairs[i].key == key) {
+			map->pairs[i].value = value;
+		}
+	}
+	put(map, key, value);
+}
+
+typedef struct {
+	i32 stack[64];
+	size_t top;
+	size_t size;
+} Stack;
+
+Stack* build() {
+	Stack* stack = (Stack*)malloc(sizeof(Stack));
+	stack->top = -1;
+	stack->size = 64;
+	return stack;
+}
+
+bool is_empty(Stack* stack) {
+	return stack->top == -1;
+}
+
+bool is_full(Stack* stack) {
+	return stack->top == stack->size;
+}
+
+i32 pop(Stack* stack) {
+	if(stack->top < 0) {
+		printf("[ERROR] Stack underflow.\n");
+		return -1;
+	}
+	stack->top -= 1;
+	return stack->stack[stack->top + 1];
+}
+
+i32 peek(Stack* stack) {
+	if(stack->top == -1) {
+		printf("[ERROR] Stack is empty");
+		return 0;
+	}
+	return stack->stack[stack->top];
+}
+
+void push(Stack* stack, i32 value) {
+	if(stack->top == stack->size) {
+		printf("[ERROR] Stack overflow.\n");
+		return;
+	}
+	stack->top += 1;
+	stack->stack[stack->top] = value;
+}
+
+bool is_out_of_bounds(i32* ptr, i32* lower_bound, i32* upper_bound) {
+	if(ptr < lower_bound || ptr > upper_bound) {
+		return true;
+	}
+	return false;
+}
 
 /*
 FULL INSTRUCTION SET:
@@ -124,7 +213,7 @@ enum STATUS {
 	OUT_OF_BOUNDS
 };
 char* interpreter_err_msg;
-
+size_t data_mem_size = 128; // size of allocated memory for interpreter data (in bytes)
 
 /*
 Steps:
@@ -140,7 +229,7 @@ Steps:
 /// Returns pointer to first int in array
 i32* parse(FILE* source_file);
 /// Returns the program status
-i32 run(i32* program);
+i32 run(i32* program, size_t program_size);
 
 /*
 Command line arguments:
@@ -266,7 +355,7 @@ i32 main(int argc, char** argv) {
 			printf("Successfully exported program to %s.\n", name_of_output_file);
 		}
 
-		i32 status = run(compiled_program);
+		i32 status = run(compiled_program, program_len);
 
 		if(name_of_input_file) free(name_of_input_file);
 		if(name_of_output_file) free(name_of_output_file);
@@ -545,6 +634,7 @@ i32* parse(FILE* source_file) {
 
 				var_index = atoi(buf);
 				compiled_code[write_index++] = var_index;
+				data_mem_size = var_index;
 
 				free(buf);
 				break;
@@ -571,6 +661,63 @@ i32* parse(FILE* source_file) {
 	return compiled_code;
 }
 
-i32 run(i32* program) {
+// interpret the given program, allocate memory equal to program_size + data_mem_size (defined by the program or is 128 bytes)
+i32 run(i32* program, size_t program_size) {
+	printf("[DEBUG] Beginning program...\n");
+	if(data_mem_size == 0) data_mem_size = 128; // if user overwrites data_mem_size with `#0;` forcefully replace it with 128 
+
+	printf("[DEBUG] Allocating memory space, size: %llu\n", sizeof(i32) * (program_size + data_mem_size));
+	// reserved memory space for program and data
+	i32* mem_space = (i32*)malloc(sizeof(i32) * (program_size + data_mem_size));
+	size_t total_memory_size = program_size + data_mem_size;
+
+	printf("[DEBUG] Initializing variable table, program counter, and data pointer...\n");
+	// program counter
+	i32* prog_ptr = mem_space;
+	// points to somewhere in data
+	i32* data_ptr = mem_space + program_size;
+	// variable table for interpreter
+	Map* vtable = (Map*)malloc(sizeof(Map));
+
+	// evaluation stacks
+	Stack* numstack = build();
+	Stack* opstack = build();
+	// NOTE: both stacks are [i32] b/c both operands, variables, and literal values are all i32
+
+	// initialize memory
+	memcpy(prog_ptr, program, program_size);
+	memset(data_ptr, 0, data_mem_size);
+	
+	// begin running program
+	while(*prog_ptr != EOD) {
+		switch(*prog_ptr) {
+			case EOD:
+				return SUCCESS;
+			case _NULL:
+				// do nothing, equivalent to NOP
+				break;
+			// double check these, b/c I don't think they are correct
+			case VARIABLE:
+				push(numstack, get(vtable, *(prog_ptr + 1)));
+				break;
+			case DATA_PTR_REF:
+				push(numstack, get(vtable, *data_ptr));
+				break;
+			case PROG_PTR_REF:
+				push(numstack, get(vtable, *prog_ptr));
+			default: break;
+		}
+
+		prog_ptr += 1;
+		if(is_out_of_bounds(prog_ptr, mem_space, mem_space + total_memory_size)) {
+			interpreter_err_msg = "Program Pointer ran out of bounds";
+			return OUT_OF_BOUNDS;
+		}
+	}
+
+	// clean up runtime memory space
+	free(mem_space);
+	free(vtable);
+
 	return FAIL;
 }
