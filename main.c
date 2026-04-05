@@ -3,9 +3,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <string_slice.h>
+#include <string.h>
+#include <errno.h>
 
 typedef char* string;
+typedef int32_t i32;
 
 /*
 FULL INSTRUCTION SET:
@@ -47,7 +49,7 @@ C0 != C1 // is not
 [ $10 ... ] // loop 10 times
 [ ~ ... ] // loop infinitely
 [ ~ ... C0 != C1 ^ ] // break from infinite loop if C0 is not equal to C1
-C0 == C1 [ -> P ] // if C0 is equal to C1, move the program pointer once to the right
+C0 == C1 [ $1 -> P ] // if C0 is equal to C1, move the program pointer once to the right
 */
 
 /*
@@ -150,77 +152,68 @@ Command line arguments:
 */
 
 i32 main(int argc, char** argv) {
-
-	printf("Argument count: %d\n", argc);
-	printf("Arguments:\n");
-	for(size_t i = 0; i < argc; i++) {
-		printf("  %s\n", argv[i]);
-	}
-
 	const char* help_message = "--help       | -h      : print the help message\n--verbose      | -v      : verbose information about parser and runtime states\n--export       | -x       : export the binary for the program\n--input <filename> | -f <filename> : use the following file as a program\n--output <filename> | -o <filename> : define the name for the exported program (defaults to program.bin)\n";
 
 	bool verbose = false;
 
 	bool use_existing_file = false;
-	char* name_of_input_file;
+	char* name_of_input_file = NULL;
 
 	bool export_binary = false;
-	char* name_of_output_file;
-
-	// convert all the static strings to slices
-	StringSlice verbose_slice = string_to_slice("--verbose");
-	StringSlice v_slice = string_to_slice("-v");
-	StringSlice help_slice = string_to_slice("--help");
-	StringSlice h_slice = string_to_slice("-h");
-	StringSlice export_slice = string_to_slice("--export");
-	StringSlice x_slice = string_to_slice("-x");
-	StringSlice input_slice = string_to_slice("--input");
-	StringSlice f_slice = string_to_slice("-f");
-	StringSlice output_slice = string_to_slice("--output");
-	StringSlice o_slice = string_to_slice("-o");
+	char* name_of_output_file = NULL;
 
 	// process command line arguments
 	for(size_t i = 1; i < argc; i++) {
-		// convert args to slices
-		StringSlice curr_arg = string_to_slice(argv[i]);
+		char* curr_arg = argv[i];
 		
+		if(strcmp(curr_arg, "--verbose") == 0 || strcmp(curr_arg, "-v") == 0) verbose = true;
 
-		if(streql(&curr_arg, &verbose_slice) || streql(&curr_arg, &v_slice)) verbose = true;
-
-		if(streql(&curr_arg, &help_slice) || streql(&curr_arg, &h_slice)) printf("%s", help_message);
+		if(strcmp(curr_arg, "--help") == 0 || strcmp(curr_arg, "-h") == 0) printf("%s", help_message);
 		
-		if(streql(&curr_arg, &export_slice) || streql(&curr_arg, &x_slice)) export_binary = true;
+		if(strcmp(curr_arg, "--export") == 0 || strcmp(curr_arg, "-x") == 0) export_binary = true;
 		
-		if(streql(&curr_arg, &input_slice) || streql(&curr_arg, &f_slice)) {
-			StringSlice next_arg;
-			if(argc > i + 1) { next_arg = string_to_slice(argv[i + 1]); }
-			else {
+		if(strcmp(curr_arg, "--input") == 0 || strcmp(curr_arg, "-f") == 0) {
+			if(argc > i + 1) {
+				use_existing_file = true;
+				name_of_input_file = malloc(strlen(argv[i + 1]) + 1);
+				if(name_of_input_file == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate memory for input filename\n");
+					return 1;
+				}
+				strcpy(name_of_input_file, argv[i + 1]);
+				i++;
+			} else {
 				printf("Missing a file name for input flag.");
 				return 1;
 			}
-
-			use_existing_file = true;
-			name_of_input_file = slice_to_string(next_arg);
 		}
 		
-		if(streql(&curr_arg, &output_slice) || streql(&curr_arg, &o_slice)) {
-			StringSlice next_arg;
-			if(argc > i + 1) { next_arg = string_to_slice(argv[i + 1]); }
-			else {
+		if(strcmp(curr_arg, "--output") == 0 || strcmp(curr_arg, "-o") == 0) {
+			if(argc > i + 1) {
+				export_binary = true;
+				name_of_output_file = malloc(strlen(argv[i + 1]) + 1);
+				if(name_of_output_file == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate memory for output filename\n");
+					return 1;
+				}
+				strcpy(name_of_output_file, argv[i + 1]);
+				i++;
+			} else {
 				printf("Missing a file name for output flag.");
 				return 1;
 			}
-
-			export_binary = true;
-			name_of_output_file = slice_to_string(next_arg);
 		}
 	}
 
 	if(argc == 1) {
 		printf("No flags passed in.");
 	} else {
-		// debug for flags
-		printf("Flags:\n  Verbose? %d\n  Input file? %d Name: %s\n  Export binary? %d Name: %s\n", verbose, use_existing_file, name_of_input_file, export_binary, name_of_output_file);
+		printf("Flags:\n  Verbose? %d\n  Input file? %d Name: %s\n  Export binary? %d Name: %s\n", 
+		       verbose, 
+		       use_existing_file, 
+		       name_of_input_file ? name_of_input_file : "(none)",
+		       export_binary, 
+		       name_of_output_file ? name_of_output_file : "(none)");
 	}
 
 	if (use_existing_file) {
@@ -236,25 +229,48 @@ i32 main(int argc, char** argv) {
 		printf("Parsing %s...\n", name_of_input_file);
 
 		i32* compiled_program = parse(source_file);
-		size_t program_len = *(&compiled_program + 1) - compiled_program;
+		
+		size_t program_len = 0;
+		while(compiled_program[program_len] != EOD) {
+			program_len++;
+		}
+		program_len++;
+
+		printf("Compiled program (modified slightly for readability):\n");
+		for(size_t i = 0; i < program_len; i++) {
+			if(compiled_program[i] == EOS) {
+				printf(";\n");
+			} else if(compiled_program[i] == EOD) {
+				printf("\nEOD\n");
+			} else {
+				printf("%d ", compiled_program[i]);
+			}
+		}
+		printf("\n");
 
 		// export program to file
 		if(export_binary) {
 			printf("Exporting compiled program to %s...\n", name_of_output_file);
 
+			if(name_of_output_file == NULL) name_of_output_file = "a.bin";
+
 			FILE* exported_file;
-			errno_t export_errors = fopen_s(&exported_file, name_of_output_file, "wb");
+			errno_t export_errors = fopen_s(&exported_file, name_of_output_file, "w");
 			if(export_errors != 0) {
-				fprintf(stderr, "[ERROR] Cannot export file %s.\n\tError: %s\n", name_of_output_file, strerror(err));
+				fprintf(stderr, "[ERROR] Cannot export file %s.\n\tError: %s\n", name_of_output_file, strerror(export_errors));
 				return 1;
 			}
 		
-			fwrite(compiled_program, program_len * sizeof(i32), program_len, exported_file);
+			fwrite(compiled_program, sizeof(i32), program_len, exported_file);
 			fclose(exported_file);
 			printf("Successfully exported program to %s.\n", name_of_output_file);
 		}
 
 		i32 status = run(compiled_program);
+
+		if(name_of_input_file) free(name_of_input_file);
+		if(name_of_output_file) free(name_of_output_file);
+		free(compiled_program);
 
 		// run program
 		return 0;
@@ -264,55 +280,77 @@ i32 main(int argc, char** argv) {
 }
 
 i32* parse(FILE* source_file) {
-	char *temp;
-	size_t n = 0;
+	char *source_code;
+	size_t code_len = 0;
 	int c;
 
-	size_t buf_size = 1;
-	temp = malloc(sizeof(char) * buf_size);
+	size_t buf_size = 1024;
+	source_code = malloc(sizeof(char) * buf_size);
 
 	while((c = fgetc(source_file)) != EOF) {
-		temp[n++] = c;
+		if(code_len >= buf_size - 1) {
+			buf_size *= 2;
+			source_code = realloc(source_code, buf_size);
+			if(source_code == NULL) {
+				fprintf(stderr, "[ERROR] Failed to reallocate buffer\n");
+				exit(1);
+			}
+		}
+		source_code[code_len++] = c;
 	}
 
-	temp[n] = '\0'; // null terminate
+	source_code[code_len] = '\0'; // null terminate
+	
+	printf("Source code:\n%s\n", source_code);
 
-	StringSlice source_code = string_to_slice(temp);
+	i32* compiled_code = (int*)malloc(sizeof(i32) * (code_len * 2));
+	if(compiled_code == NULL) {
+		fprintf(stderr, "[ERROR] Failed to allocate memory for compiled code\n");
+		free(source_code);
+		exit(1);
+	}
 
-	free(temp);
-
-	i32* compiled_code = (int*)malloc(sizeof(i32) * (source_code.len + 1));
 	size_t write_index = 0;
+	i32 integer_buf_size;
+	char* buf;
+	int var_index;
 
-	for(size_t i = 0; i < source_code.len; i++) {
-		char curr_tok = source_code.begin[i];
+	for(size_t i = 0; i < code_len; i++) {
+		char curr_tok = source_code[i];
 		switch(curr_tok) {
 			case 'C':
-				compiled_code[write_index] = VARIABLE;
-				size_t next = i + 1;
-				i32 integer_buf_size = 10; // the MAX_I32 value has 10 digits
-				char* buf = (char*)malloc(sizeof(char) * integer_buf_size);
-				for(size_t j = 0; j < integer_buf_size; j++) {
-					if(isdigit(source_code.begin[i + j])) {
-						buf[j] = source_code.begin[i + j];
+				compiled_code[write_index++] = VARIABLE;
+				integer_buf_size = 10; // the MAX_I32 value has 10 digits
+				buf = (char*)malloc(sizeof(char) * (integer_buf_size + 1));
+				if(buf == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate parsing buffer\n");
+					free(source_code);
+					free(compiled_code);
+					exit(1);
+				}
+				size_t j;
+				for(j = 1; j < integer_buf_size && (i + j) < code_len; j++) {
+					if(isdigit(source_code[i + j])) {
+						buf[j-1] = source_code[i + j];
 					} else {
-						buf[j] = '\0'; // null terminate
-						i += j; // consume all the integer characters
 						break;
 					}
 				}
+				buf[j-1] = '\0'; // null terminate
+				i += j - 1; // consume all the integer characters
 
 				if(strlen(buf) == 0) {
 					fprintf(stderr, "[ERROR] Variable reference or declaration does not have an variable index following the `C` symbol.\n");
+					free(buf);
+					free(source_code);
+					free(compiled_code);
 					exit(1);
 				}
 
-				int var_index = atoi(buf);
-				compiled_code[next] = var_index;
+				var_index = atoi(buf);
+				compiled_code[write_index++] = var_index;
 
 				free(buf);
-
-				write_index++;
 				break;
 			case 'D':
 				compiled_code[write_index] = DATA_PTR_REF;
@@ -323,40 +361,46 @@ i32* parse(FILE* source_file) {
 				write_index++;
 				break;
 			case 'I':
-				compiled_code[write_index] = INT_LITERAL;
+				compiled_code[write_index++] = INT_LITERAL;
 
 				integer_buf_size = 10; // the MAX_I32 value has 10 digits
-				buf = (char*)malloc(sizeof(char) * integer_buf_size);
-				for(size_t j = 0; j < integer_buf_size; j++) {
-					if(isdigit(source_code.begin[i + j])) {
-						buf[j] = source_code.begin[i + j];
+				buf = (char*)malloc(sizeof(char) * (integer_buf_size + 1));
+				if(buf == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate parsing buffer\n");
+					free(source_code);
+					free(compiled_code);
+					exit(1);
+				}
+				for(j = 1; j < integer_buf_size && (i + j) < code_len; j++) {
+					if(isdigit(source_code[i + j])) {
+						buf[j-1] = source_code[i + j];
 					} else {
-						buf[j] = '\0'; // null terminate
-						i += j; // consume all the integer characters
 						break;
 					}
 				}
+				buf[j-1] = '\0'; // null terminate
+				i += j - 1; // consume all the integer characters
 
 				if(strlen(buf) == 0) {
 					fprintf(stderr, "[ERROR] Expected an integer following `I` symbol.\n");
+					free(buf);
+					free(source_code);
+					free(compiled_code);
 					exit(1);
 				}
 
 				var_index = atoi(buf);
-				compiled_code[next] = var_index;
+				compiled_code[write_index++] = var_index;
 
 				free(buf);
-
-				write_index++;
 				break;
 			case '=':
-				if(source_code.begin[i + 1] != '=') {
-					compiled_code[write_index] = ASSIGN;
+				if(i + 1 < code_len && source_code[i + 1] == '=') {
+					compiled_code[write_index++] = EQUIV;
+					i++; // skip =
 				} else {
-					compiled_code[write_index] = EQUIV;
-					write_index++;
+					compiled_code[write_index++] = ASSIGN;
 				}
-				write_index++;
 				break;
 			case ':':
 				compiled_code[write_index] = COLON;
@@ -371,57 +415,56 @@ i32* parse(FILE* source_file) {
 				write_index++;
 				break;
 			case '/':
-				compiled_code[write_index] = DIV;
+				compiled_code[write_index++] = DIV;
+				break;
 			case '+':
-				if(source_code.begin[i + 1] != '+') {
-					compiled_code[write_index] = INC;
+				if(i + 1 < code_len && source_code[i + 1] == '+') {
+					compiled_code[write_index++] = INC;
+					i++; // skip +
 				} else {
-					compiled_code[write_index] = PLUS;
-					write_index++;
+					compiled_code[write_index++] = PLUS;
 				}
-				write_index++;
 				break;
 			case '-':
-				if(source_code.begin[i + 1] != '-') {
-					compiled_code[write_index] = DEC;
-				} else if(source_code.begin[i + 1] == '>'){
-					compiled_code[write_index] = RIGHT_ARROW;
-					write_index++;
+				if(i + 1 < code_len && source_code[i + 1] == '-') {
+					compiled_code[write_index++] = DEC;
+					i++; // skip -
+				} else if(i + 1 < code_len && source_code[i + 1] == '>'){
+					compiled_code[write_index++] = RIGHT_ARROW;
+					i++; // skip >
 				} else {
-					compiled_code[write_index] = MINUS;
-					write_index++;
+					compiled_code[write_index++] = MINUS;
 				}
-				write_index++;
 				break;
 			case '!':
-				if(source_code.begin[i + 1] == '=') {
-					compiled_code[write_index] = NOT_EQUIV;
-					write_index++;
+				if(i + 1 < code_len && source_code[i + 1] == '=') {
+					compiled_code[write_index++] = NOT_EQUIV;
+					i++; // skip =
 				} else {
 					fprintf(stderr, "[ERROR] Expected `=` following `!` symbol.\n");
+					free(source_code);
+					free(compiled_code);
 					exit(1);
 				}
-				write_index++;
 				break;
 			case '<':
-				if(source_code.begin[i + 1] != '=') {
-					compiled_code[write_index] = LESS; 
-				} else if(source_code.begin[i + 1] == '-') {
-					compiled_code[write_index] = LEFT_ARROW;
+				if(i + 1 < code_len && source_code[i + 1] == '=') {
+					compiled_code[write_index++] = LESS_EQUAL;
+					i++; // skip =
+				} else if(i + 1 < code_len && source_code[i + 1] == '-') {
+					compiled_code[write_index++] = LEFT_ARROW;
+					i++; // skip -
 				} else {
-					compiled_code[write_index] = LESS_EQUAL;
-					write_index++;
+					compiled_code[write_index++] = LESS;
 				}
-				write_index++;
 				break;
 			case '>':
-				if(source_code.begin[i + 1] != '=') {
-					compiled_code[write_index] = GREATER; 
+				if(i + 1 < code_len && source_code[i + 1] == '=') {
+					compiled_code[write_index++] = GREATER_EQUAL;
+					i++; // skip =
 				} else {
-					compiled_code[write_index] = GREATER_EQUAL;
-					write_index++;
+					compiled_code[write_index++] = GREATER;
 				}
-				write_index++;
 				break;
 			case '[':
 				compiled_code[write_index] = BEGIN_SCOPE;
@@ -432,31 +475,37 @@ i32* parse(FILE* source_file) {
 				write_index++;
 				break;
 			case '$':
-				compiled_code[write_index] = DEFINE_SCOPE_ITERATIONS;
-				next = i + 1;
+				compiled_code[write_index++] = DEFINE_SCOPE_ITERATIONS;
 				integer_buf_size = 10; // the MAX_I32 value has 10 digits
-				buf = (char*)malloc(sizeof(char) * integer_buf_size);
-				for(size_t j = 0; j < integer_buf_size; j++) {
-					if(isdigit(source_code.begin[i + j])) {
-						buf[j] = source_code.begin[i + j];
+				buf = (char*)malloc(sizeof(char) * (integer_buf_size + 1));
+				if(buf == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate parsing buffer\n");
+					free(source_code);
+					free(compiled_code);
+					exit(1);
+				}
+				for(j = 1; j < integer_buf_size && (i + j) < code_len; j++) {
+					if(isdigit(source_code[i + j])) {
+						buf[j-1] = source_code[i + j];
 					} else {
-						buf[j] = '\0'; // null terminate
-						i += j; // consume all the integer characters
 						break;
 					}
 				}
+				buf[j-1] = '\0'; // null terminate
+				i += j - 1; // consume all the integer characters
 
 				if(strlen(buf) == 0) {
 					fprintf(stderr, "[ERROR] Expected an integer following `$` symbol.\n");
+					free(buf);
+					free(source_code);
+					free(compiled_code);
 					exit(1);
 				}
 
 				var_index = atoi(buf);
-				compiled_code[next] = var_index;
+				compiled_code[write_index++] = var_index;
 
 				free(buf);
-
-				write_index++;
 				break;
 			case '~':
 				compiled_code[write_index] = INFINITE_LOOP;
@@ -467,31 +516,37 @@ i32* parse(FILE* source_file) {
 				write_index++;
 				break;
 			case '#':
-				compiled_code[write_index] = DEFINE_DATA_MEM_SIZE;
-				next = i + 1;
+				compiled_code[write_index++] = DEFINE_DATA_MEM_SIZE;
 				integer_buf_size = 10; // the MAX_I32 value has 10 digits
-				buf = (char*)malloc(sizeof(char) * integer_buf_size);
-				for(size_t j = 0; j < integer_buf_size; j++) {
-					if(isdigit(source_code.begin[i + j])) {
-						buf[j] = source_code.begin[i + j];
+				buf = (char*)malloc(sizeof(char) * (integer_buf_size + 1));
+				if(buf == NULL) {
+					fprintf(stderr, "[ERROR] Failed to allocate parsing buffer\n");
+					free(source_code);
+					free(compiled_code);
+					exit(1);
+				}
+				for(j = 1; j < integer_buf_size && (i + j) < code_len; j++) {
+					if(isdigit(source_code[i + j])) {
+						buf[j-1] = source_code[i + j];
 					} else {
-						buf[j] = '\0'; // null terminate
-						i += j; // consume all the integer characters
 						break;
 					}
 				}
+				buf[j-1] = '\0'; // null terminate
+				i += j - 1; // consume all the integer characters
 
 				if(strlen(buf) == 0) {
 					fprintf(stderr, "[ERROR] Expected an integer following `#` symbol.\n");
+					free(buf);
+					free(source_code);
+					free(compiled_code);
 					exit(1);
 				}
 
 				var_index = atoi(buf);
-				compiled_code[next] = var_index;
+				compiled_code[write_index++] = var_index;
 
 				free(buf);
-
-				write_index++;
 				break;
 			case ';':
 				compiled_code[write_index] = EOS;
@@ -501,9 +556,17 @@ i32* parse(FILE* source_file) {
 		}
 	}
 
-	compiled_code[source_code.len + 1] = EOD;
+	if(write_index >= code_len * 2) {
+		fprintf(stderr, "[ERROR] Write index exceeded allocated buffer size\n");
+		free(source_code);
+		free(compiled_code);
+		exit(1);
+	}
+	
+	compiled_code[write_index] = EOD;
 
 	fclose(source_file);
+	free(source_code);
 
 	return compiled_code;
 }
