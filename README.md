@@ -52,11 +52,11 @@ Anyways, here are the different instructions:
 `[ $10 ... ]` - loop 10 times\
 `[ ~ ... ]` - loop infinitely\
 `[ ~ ... C0 != C1 ^ ]` - break from infinite loop if C0 is not equal to C1\
-`C0 == C1 [ $1 -> P ]` - if C0 is equal to C1, move the program pointer once to the right
-`FOO:` - create label
+`C0 == C1 [ $1 -> P ]` - if C0 is equal to C1, move the program pointer once to the right\
+`FOO:` - create label\
 `P : FOO` - jump to label
 
-# 
+
 
 ## Turing Completeness
 
