@@ -23,10 +23,10 @@ Anyways, here are the different instructions:
 `-> C0` - increment address of a variable
 
 ## System Pointer Instructions
-`<- P` - move left program ptr\
-`<- D` - move left data ptr\
-`-> P` - move right p ptr\
-`-> D` - move right d ptr\
+`<- P` - move program ptr left \
+`<- D` - move data ptr left\
+`-> P` - move program ptr right\
+`-> D` - move data ptr right\
 `P : 5` - move program ptr\
 `D : 12` - move data ptr\
 `P = 9` - set value at program ptr\
@@ -53,3 +53,30 @@ Anyways, here are the different instructions:
 `[ ~ ... ]` - loop infinitely\
 `[ ~ ... C0 != C1 ^ ]` - break from infinite loop if C0 is not equal to C1\
 `C0 == C1 [ $1 -> P ]` - if C0 is equal to C1, move the program pointer once to the right
+`FOO:` - create label
+`P : FOO` - jump to label
+
+# 
+
+## Turing Completeness
+
+One Instruction Set Computer
+```c
+process:
+    // initialize variables
+    C0 = *D;
+    -> D;
+    C1 = *D;
+    -> D;
+    C2 = *D;
+    <- D; <- D; // reset data ptr position
+
+    // SUBLEQZ
+    C1 = C1 - C0;
+    [ $(C1 <= 0) D : C2 ]
+
+    // loop
+    P : process;
+```
+
+
