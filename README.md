@@ -1,4 +1,4 @@
-# Toy Lang - Esolang
+# Medusa - Esolang
 
 Just a simple esolang written in C99 as practice.\
 Not much else to it.
@@ -6,6 +6,9 @@ Not much else to it.
 Its unique feature is that the program is compiled and loaded into the same memory space as your working data.\
 This means that you can modify your program code at runtime!\
 Although there it isn't very strongly supported, you just *can* do it.
+
+The parser compiles from infix to prefix using shunting yard.\
+Then the interpreter is a stack machine.
 
 Anyways, here are the different instructions:
 ## Meta Instructions
