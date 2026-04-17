@@ -57,7 +57,7 @@ Anyways, here are the different instructions:
 `P : FOO` - jump to label
 
 ## Miscellaneous Instructions
-`% ...` - print the following integer as an ascii character
+`% ...` - print the following integer as an ascii character\
 `%% ...` - print the following integer
 
 > [!note]
