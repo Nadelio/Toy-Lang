@@ -1,30 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-
-typedef char* string;
-typedef int32_t i32;
-
-typedef struct {
-	i32 key;
-	i32 value;
-	i32 position;
-} MapElement;
-
-typedef struct {
-	size_t size;
-	MapElement* pairs;
-} Map;
+#include "structs.h"
 
 void put(Map* map, i32 key, i32 value, i32 position) {
-	map->pairs = realloc(map->pairs, sizeof(MapElement*) * (map->size + 1));
+	map->pairs = realloc(map->pairs, sizeof(MapElement) * (map->size + 1));
 	map->pairs[map->size] = (MapElement){ .key = key, .value = value, .position = position };
 	map->size = map->size + 1;
 }
 
 MapElement* get(Map* map, i32 key) {
-	for(int i = 0; i < map->size; i++) {
+	for(size_t i = 0; i < map->size; i++) {
 		if(map->pairs[i].key == key) {
 			return &map->pairs[i];
 		}
@@ -35,7 +20,7 @@ MapElement* get(Map* map, i32 key) {
 }
 
 void set(Map* map, i32 indent, i32 value, i32 address) {
-	for(int i = 0; i < map->size; i++) {
+	for(size_t i = 0; i < map->size; i++) {
 		if(map->pairs[i].key == indent) {
 			map->pairs[i].value = value;
 			map->pairs[i].position = address;
@@ -45,20 +30,7 @@ void set(Map* map, i32 indent, i32 value, i32 address) {
 	put(map, indent, value, address);
 }
 
-typedef struct {
-	i32 value;
-	i32 indent;
-	i32 address;
-	bool is_literal;
-} Variable;
-
-typedef struct {
-	Variable* stack[64];
-	size_t top;
-	size_t size;
-} StackVariable;
-
-StackVariable* build_varstack() {
+StackVariable* build_varstack(void) {
 	StackVariable* stack = (StackVariable*)malloc(sizeof(StackVariable));
 	stack->top = -1;
 	stack->size = 64;
@@ -66,7 +38,7 @@ StackVariable* build_varstack() {
 }
 
 void deconstruct(StackVariable* varstack) {
-	for(int i = 0; i < varstack->size; i++) {
+	for(size_t i = 0; i < varstack->size; i++) {
 		free(varstack->stack[i]);
 	}
 	free(varstack);
@@ -77,7 +49,7 @@ bool is_varstack_empty(StackVariable* stack) {
 }
 
 bool is_varstack_full(StackVariable* stack) {
-	return stack->top == stack->size;
+	return (size_t)(stack->top + 1) >= stack->size;
 }
 
 Variable* pop_varstack(StackVariable* stack) {
@@ -106,13 +78,7 @@ void push_varstack(StackVariable* stack, Variable* value) {
 	stack->stack[stack->top] = value;
 }
 
-typedef struct {
-	i32 stack[64];
-	size_t top;
-	size_t size;
-} Stacki32;
-
-Stacki32* build() {
+Stacki32* build(void) {
 	Stacki32* stack = (Stacki32*)malloc(sizeof(Stacki32));
 	stack->top = -1;
 	stack->size = 64;
@@ -124,7 +90,7 @@ bool is_empty(Stacki32* stack) {
 }
 
 bool is_full(Stacki32* stack) {
-	return stack->top == stack->size;
+	return (size_t)(stack->top + 1) >= stack->size;
 }
 
 i32 pop(Stacki32* stack) {
@@ -154,7 +120,7 @@ void push(Stacki32* stack, i32 value) {
 }
 
 bool is_out_of_bounds(i32* ptr, i32* lower_bound, i32* upper_bound) {
-	if(ptr < lower_bound || ptr > upper_bound) {
+	if(ptr < lower_bound || ptr >= upper_bound) {
 		return true;
 	}
 	return false;
