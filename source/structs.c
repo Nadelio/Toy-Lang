@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "structs.h"
-#include "debug.h"
+#include "../include/structs.h"
+#include "../include/debug.h"
 
 void put(Map* map, i32 key, i32 value, i32 position) {
 	map->pairs = realloc(map->pairs, sizeof(MapElement) * (map->size + 1));

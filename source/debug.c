@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "debug.h"
+#include "../include/debug.h"
 
 void print_debug(bool is_debug, const char* message, ...) {
 	if(!is_debug) return;

@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "structs.h"
-#include "parser.h"
+#include "../include/structs.h"
+#include "../include/parser.h"
 
 char* interpreter_err_msg;
 size_t data_mem_size = 128;
@@ -90,7 +90,6 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 	vtable->size = 0;
 	vtable->pairs = NULL;
 
-	Stacki32* result_stack = build();
 	StackVariable* value_stack = build_varstack();
 	i32* data_base = data_ptr;
 	i32* scope_starts[64] = {0};
@@ -329,7 +328,6 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 			}
 			case EOS:
 				clear_runtime_stack(value_stack);
-				result_stack->top = -1;
 				break;
 			default:
 				break;
@@ -341,7 +339,6 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 			free(vtable->pairs);
 			free(mem_space);
 			free(vtable);
-			free(result_stack);
 			return OUT_OF_BOUNDS;
 		}
 	}
@@ -352,7 +349,6 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 	free(vtable->pairs);
 	free(mem_space);
 	free(vtable);
-	free(result_stack);
 
 	return SUCCESS;
 }

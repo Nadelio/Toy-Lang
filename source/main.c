@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include "structs.h"
-#include "parser.h"
+#include "../include/structs.h"
+#include "../include/parser.h"
 
 static void print_compiled_program(const i32* program, size_t program_len);
 

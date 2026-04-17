@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include "parser.h"
+#include "../include/parser.h"
 
 typedef struct {
 	i32 type;
