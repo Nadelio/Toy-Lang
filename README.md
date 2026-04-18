@@ -10,9 +10,15 @@ Although there it isn't very strongly supported, you just *can* do it.
 The parser compiles from infix to prefix using shunting yard.\
 Then the interpreter is a stack machine.
 
-![Hello World Example](assets/hello_world.png)
-![Self-modifying Code Example](assets/modify.png)
-![Generic Syntax Example](assets/syntax_demo.png)
+<p align="center">
+  <img src="assets/hello_world.png" />
+</p>
+<p align="center">
+  <img src="assets/modify.png" />
+</p>
+<p align="center">
+  <img src="assets/syntax_demo.png" />
+</p>
 
 ## Meta Instructions
 `#128` - Allocate 128 bytes for data space (only valid at the very beginning of a program)
