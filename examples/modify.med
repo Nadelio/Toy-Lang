@@ -6,6 +6,9 @@ C0 = 10;
 // `C0 = C0 + 5;` compiles as: `C0 C0 I5 + =`
 // so the `+` opcode lives 6 cells after the label
 C1 : mutate + 6;
+// note, you can also use the data pointer for this purpose instead of a variable
+// using the data pointer can allow you to do larger writes all at once
+// since the data pointer has access to the "..." syntax
 
 loop:
 mutate:
