@@ -8,7 +8,7 @@
 static void print_compiled_program(const i32* program, size_t program_len);
 
 i32 main(int argc, char** argv) {
-	const char* help_message = "--help       | -h      : print the help message\n--verbose      | -v      : verbose information about parser and runtime states\n--export       | -x       : export the binary for the program\n--input <filename> | -f <filename> : use the following file as a program\n--output <filename> | -o <filename> : define the name for the exported program (defaults to program.bin)\n";
+	const char* help_message = "--help              | -h      : print the help message\n--verbose           | -v      : verbose information about parser and runtime states\n--export            | -x       : export the binary for the program\n--input <filename>  | -f <filename> : use the following file as a program\n--output <filename> | -o <filename> : define the name for the exported program (defaults to program.bin)\n";
 
 	bool verbose = false;
 
@@ -65,6 +65,7 @@ i32 main(int argc, char** argv) {
 
 	if(argc == 1) {
 		print_debug(verbose, " No flags passed in.");
+		printf("%s", help_message);
 	} else {
 		print_debug(verbose, " Flags:\n  Verbose? %s\n  Input file? %s\n    Name: %s\n  Export binary? %s\n    Name: %s\n", 
 		       verbose ? "true" : "false", 
