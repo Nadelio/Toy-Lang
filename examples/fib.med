@@ -9,7 +9,7 @@ fib: // fib(n)
 
 	C4 = 1; // i
 	[~ // while(1) {
-		%%C1; // printf("%d", a);
+		%%C1; %'\n'; // printf("%d\n", a);
 		C3 = C1 + C2; // next = a + b;
 		C1 = C2; // a = b;
 		C2 = C3; // b = next;
@@ -23,6 +23,6 @@ fib: // fib(n)
 main:
 	C0 = 3; // n
 	P : fib; // fib(n)
-	%"Program complete!\nFib " %%C0 %" is " %%C1;
 ret:
+	%"Program complete!\nFib " %%C0 %" is "; C1--; %%C1%'\n';
 

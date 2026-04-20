@@ -444,8 +444,9 @@ static int operator_precedence(i32 type) {
 		case DEFINE_DATA_MEM_SIZE:
 		case DEFINE_SCOPE_ITERATIONS:
 		case INFINITE_LOOP:
-		case BREAK_FROM_SCOPE:
 			return 5;
+		case BREAK_FROM_SCOPE:
+			return 1;
 		default:
 			return 0;
 	}

@@ -14,7 +14,7 @@ static MapElement* find_or_create_var(Map* map, i32 key, size_t program_size, si
 		}
 	}
 
-	i32 default_position = (i32)program_size + (key < 0 ? 0 : key);
+	i32 default_position = (i32)program_size + (key < 0 ? (-key - 1) : key);
 	if(default_position < 0 || (size_t)default_position >= total_memory_size) {
 		default_position = (i32)program_size;
 	}
@@ -117,11 +117,11 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 				break;
 			case VARIABLE: {
 				i32 ident = *(prog_ptr + 1);
-				MapElement* slot = find_or_create_var(vtable, ident, program_size, total_memory_size);
+				MapElement* slot = find_or_create_var(vtable, -(ident + 1), program_size, total_memory_size);
 				if(slot->position >= 0 && (size_t)slot->position < total_memory_size) {
 					slot->value = read_memory_cell(mem_space, total_memory_size, slot->position);
 				}
-				push_runtime_value(value_stack, (Variable){ .value = slot->value, .indent = ident, .address = slot->position, .is_literal = false });
+				push_runtime_value(value_stack, (Variable){ .value = slot->value, .indent = -(ident + 1), .address = slot->position, .is_literal = false });
 				prog_ptr += 1;
 				break;
 			}
@@ -282,7 +282,6 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 			case INFINITE_LOOP:
 				if(scope_top >= 0) {
 					scope_is_infinite[scope_top] = true;
-					prog_ptr = scope_starts[scope_top] - 1;
 				}
 				break;
 			case BREAK_FROM_SCOPE: {
@@ -300,7 +299,11 @@ i32 run(bool verbose, i32* program, size_t program_size) {
 			}
 			case END_SCOPE:
 				if(scope_top >= 0) {
-					scope_top--;
+					if(scope_is_infinite[scope_top]) {
+						prog_ptr = scope_starts[scope_top] - 1;
+					} else {
+						scope_top--;
+					}
 				}
 				break;
 			case DEFINE_DATA_MEM_SIZE:
